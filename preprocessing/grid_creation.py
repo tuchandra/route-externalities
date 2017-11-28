@@ -13,58 +13,60 @@ http://gis.stackexchange.com/questions/54119/creating-square-grid-polygon-shapef
 
 SCALE = 3
 
-def grid(outputGridfn, xmin, xmax, ymin, ymax, gridHeight, gridWidth, boundary):
+def grid(output_grid_fn, xmin, xmax, ymin, ymax, grid_height, grid_width, boundary):
 
     # check all floats
     xmin = float(xmin)
     xmax = float(xmax)
     ymin = float(ymin)
     ymax = float(ymax)
-    gridWidth = float(gridWidth)
-    gridHeight = float(gridHeight)
+    grid_width = float(grid_width)
+    grid_height = float(grid_height)
 
-    # get rows
-    rows = ceil((ymax - ymin) / gridHeight)
-    # get columns
-    cols = ceil((xmax - xmin) / gridWidth)
+    # get rows, columns
+    rows = ceil((ymax - ymin) / grid_height)
+    cols = ceil((xmax - xmin) / grid_width)
 
     # create grid cells
     countcols = 0
     features = []
     while countcols < cols:
         # set x coordinate for this column
-        grid_x_left = xmin + (countcols * gridWidth)
+        grid_x_left = xmin + (countcols * grid_width)
         countcols += 1
-        # reset count for rows
+
         countrows = 0
         while countrows < rows:
             # update y coordinate for this row
-            grid_y_bottom = ymin + (countrows * gridHeight)
+            grid_y_bottom = ymin + (countrows * grid_height)
             countrows += 1
+
             # check if grid centroid contained in county boundary
             bottomleftcorner = (grid_x_left, grid_y_bottom)
             coords = [bottomleftcorner]
+
             # add other three corners of gridcell before closing grid with starting point again
             for i in [(0.001, 0), (0.001, 0.001), (0, 0.001), (0, 0)]:
                 coords.append((bottomleftcorner[0] + i[1], bottomleftcorner[1] + i[0]))
+
             intersects = False
             for corner in coords[1:]:
                 if boundary.contains(Point(corner)):
                     intersects = True
                     break
+
             if intersects:
                 properties = {'rid': round(grid_y_bottom * 10**SCALE), 'cid': round(grid_x_left * 10**SCALE)}
                 features.append(Feature(geometry=Polygon([coords]), properties=properties))
 
-    with open(outputGridfn, 'w') as fout:
+    with open(output_grid_fn, 'w') as fout:
         dump(FeatureCollection(features), fout)
 
 def main():
     """Generate grid for a GeoJSON json file passed on the command line.
 
     Chicago data from https://whosonfirst.mapzen.com/spelunker/id/85940195
-    Repurpose for other cities as appropriate -- it should probably work. The
-    script took 
+    Repurpose for other cities as appropriate -- it should probably work.
     """
 
     parser = argparse.ArgumentParser()
@@ -90,13 +92,13 @@ def main():
     ymin = bb[1]  # most southern point
     ymax = bb[3]  # most northern point
 
-    gridHeight = 0.001
-    gridWidth = 0.001
+    grid_height = 0.001
+    grid_width = 0.001
     xmin = floor(xmin * 10**SCALE) / 10**SCALE
     ymax = ceil(ymax * 10**SCALE) / 10**SCALE
 
     grid("{0}_grid.geojson".format(os.path.join(args.output_folder, args.features_geojson)),
-         xmin, xmax, ymin, ymax, gridHeight, gridWidth, boundary)
+         xmin, xmax, ymin, ymax, grid_height, grid_width, boundary)
 
 
 if __name__ == "__main__":

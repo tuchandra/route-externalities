@@ -60,7 +60,12 @@ def grid(outputGridfn, xmin, xmax, ymin, ymax, gridHeight, gridWidth, boundary):
         dump(FeatureCollection(features), fout)
 
 def main():
-    """Generate grid for a GeoJSON json file passed on the command line."""
+    """Generate grid for a GeoJSON json file passed on the command line.
+
+    Chicago data from https://whosonfirst.mapzen.com/spelunker/id/85940195
+    Repurpose for other cities as appropriate -- it should probably work. The
+    script took 
+    """
 
     parser = argparse.ArgumentParser()
     parser.add_argument("features_geojson", help="Path to GeoJSON with features to be gridded.")
@@ -72,6 +77,13 @@ def main():
 
     boundary = shape(feature["geometry"])
     bb = feature["bbox"]
+
+    # OPTIONAL -- simplify boundary using shapely's implementation of Douglas-
+    # Peucker algorithm. This was untested but it should work; first argument
+    # is the tolerance parameter (for which I provided an arbitrary value). Use
+    # this if the script is taking too long to run (the grid function does
+    # many expensive point-in-polygon computations)
+    # boundary.simplify(0.00001)
 
     xmin = bb[0]  # most western point
     xmax = bb[2]  # most eastern point

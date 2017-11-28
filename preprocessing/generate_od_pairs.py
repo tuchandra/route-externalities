@@ -11,7 +11,7 @@ from shapely.geometry import shape, Point
 ODPAIRS_PER_CITY = 5000
 OUTPUT_HEADER = ["ID", "origin_lon", "origin_lat", "destination_lon", "destination_lat", "straight_line_distance"]
 
-def odpairs_from_grid_centroids(input_geojson_fn, output_csv_fn, min_dist = 0, max_dist = 30):
+def odpairs_from_grid_centroids(input_geojson_fn, output_csv_fn, min_dist, max_dist):
     """Randomly select origin-destination pairs from combinations of grid cells.
 
     Args:
@@ -23,7 +23,8 @@ def odpairs_from_grid_centroids(input_geojson_fn, output_csv_fn, min_dist = 0, m
         Void. Writes output origin-destination pairs along with straight-line distance to CSV file
     """
 
-    gridcells = json.load(fin)['features']
+    with open(input_geojson_fn, 'r') as fin:
+        gridcells = json.load(fin)['features']
 
     for feature in gridcells:
         feature['centroid'] = (shape(feature['geometry']).centroid.y, shape(feature['geometry']).centroid.x)
@@ -78,13 +79,12 @@ def get_distance(orig_pt, dest_pt):
 
 def main():
     min_dist = 0
-    max_dist = 30
-    data_folder = "grids"
+    max_dist = 10
+    data_folder = "data"
     city = "chicago"
-    gridcells = "{0}/chicago_grid.geojson".format(data_folder)]
 
-    odpairs_from_grid_centroids(input_geojson_fn = gridcells,
-                                output_csv_fn = "output/{0}_grid_od_pairs.csv".format(city),
+    odpairs_from_grid_centroids(input_geojson_fn = f"{data_folder}/{city}_grid.geojson",
+                                output_csv_fn = f"{data_folder}/{city}_od_pairs.csv",
                                 min_dist = min_dist,
                                 max_dist = max_dist)
 

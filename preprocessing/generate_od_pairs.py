@@ -41,8 +41,8 @@ def odpairs_from_grid_centroids(input_geojson_fn, output_csv_fn, min_dist, max_d
         dist_bins = [0] * max_dist
 
         while routes_added < ODPAIRS_PER_CITY:
-            i = randint(0, num_features)
-            j = randint(0, num_features)
+            i = randint(0, num_features - 1)
+            j = randint(0, num_features - 1)
             if i != j:
                 # randomly determine which point will be origin and which destination
                 feature1 = gridcells[i]

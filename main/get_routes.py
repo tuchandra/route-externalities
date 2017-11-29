@@ -85,7 +85,7 @@ class GoogleAPI(API):
 
         routes = []
         try:
-            route_jsons = self.client.directions(origin = origin, destination = destination, units = "metric", mode = "driving", departure_time = "now", alternatives = self.get_alternatives)
+            route_jsons = self.client.directions(origin = origin, destination = destination, units = "metric", mode = "walking", departure_time = "now", alternatives = self.get_alternatives)
 
         except Exception:
             traceback.print_exc()
@@ -231,9 +231,9 @@ class MapquestAPI(API):
         start = "{0},{1}".format(origin[0], origin[1])
         dest = "{0},{1}".format(destination[0], destination[1])
         if self.get_alternatives:
-            url = self.base_url + urllib.parse.urlencode([('key', self.api_key), ("from", start), ("to", dest), ('narrativeType', 'text'), ('fullShape', 'true'), ('routeType', 'fastest'), ('unit', 'k'), ('doReverseGeocode','false'), ('maxRoutes', self.output_num)])
+            url = self.base_url + urllib.parse.urlencode([('key', self.api_key), ("from", start), ("to", dest), ('narrativeType', 'text'), ('fullShape', 'true'), ('routeType', 'pedestrian'), ('unit', 'k'), ('doReverseGeocode','false'), ('maxRoutes', self.output_num)])
         else:
-            url = self.base_url + urllib.parse.urlencode([('key', self.api_key), ("from", start), ("to", dest), ('narrativeType', 'text'), ('fullShape', 'true'), ('routeType', 'fastest'), ('unit', 'k'), ('doReverseGeocode','false')])      
+            url = self.base_url + urllib.parse.urlencode([('key', self.api_key), ("from", start), ("to", dest), ('narrativeType', 'text'), ('fullShape', 'true'), ('routeType', 'pedestrian'), ('unit', 'k'), ('doReverseGeocode','false')])
 
         try:
             response = urllib.request.urlopen(url)

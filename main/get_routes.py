@@ -26,7 +26,7 @@ import googlemaps
 
 class API(object, metaclass = ABCMeta):
 
-    def __init__(self, api_key_fn, api_limit=2500, stop_at_api_limit=True, city="nyc", route_type="grid", output_num=1):
+    def __init__(self, api_key_fn, api_limit=2500, stop_at_api_limit=True, output_num=1):
         with open(api_key_fn, 'r') as keyfile:
             self.api_key = next(keyfile).strip()
         self.api_limit = api_limit
@@ -36,7 +36,7 @@ class API(object, metaclass = ABCMeta):
         else:
             self.get_alternatives = False
         self.output_num = output_num
-        self.logfile_fn = "logs/{0}_{1}_PLATFORM_log.txt".format(city, route_type)
+        self.logfile_fn = "logs/chicago_grid_PLATFORM_log.txt"
         self.queries_made = 0
         self.exceptions = 0
 
@@ -74,8 +74,8 @@ class Route(dict):
 
 class GoogleAPI(API):
 
-    def __init__(self, api_key_fn, api_limit=2500, stop_at_api_limit=True, city="nyc", route_type="grid", output_num=1):
-        super().__init__(api_key_fn, api_limit, stop_at_api_limit, city, route_type, output_num)
+    def __init__(self, api_key_fn, api_limit=2500, stop_at_api_limit=True, output_num=1):
+        super().__init__(api_key_fn, api_limit, stop_at_api_limit, output_num)
         self.logfile_fn = self.logfile_fn.replace("PLATFORM", "google")
         self.write_to_log("START", "Starting Google API")
         self.client = None
@@ -218,10 +218,10 @@ class MapquestAPI(API):
 
     _turn_types = ['straight', 'slight right', 'right', 'sharp right', 'reverse', 'sharp left', 'left', 'slight left', 'right u-turn', 'left u-turn', 'right merge', 'left merge', 'right on ramp', 'left on ramp', 'right off ramp', 'left off ramp', 'right fork', 'left fork', 'straight fork', 'take transit', 'transfer transit', 'port transit', 'enter transit', 'exit transit']
 
-    def __init__(self, api_key_fn, api_limit=2500, stop_at_api_limit=True, city="nyc", route_type="grid", output_num=1):
-        super().__init__(api_key_fn, api_limit, stop_at_api_limit, city, route_type, output_num)
+    def __init__(self, api_key_fn, api_limit=2500, stop_at_api_limit=True, output_num=1):
+        super().__init__(api_key_fn, api_limit, stop_at_api_limit, output_num)
         self.logfile_fn = self.logfile_fn.replace("PLATFORM", "mapquest")
-        self.write_to_log("LOG", "Starting Mapquest API")
+        self.write_to_log("START", "Starting Mapquest API")
         if self.get_alternatives:
             self.base_url = "http://www.mapquestapi.com/directions/v2/alternateroutes?"
         else:
@@ -293,48 +293,46 @@ class MapquestAPI(API):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("city", help="City to run grid analysis for: 'sf' or 'nyc'")
-    parser.add_argument("start_time", type=int, help="## between 00 and 24")
-    parser.add_argument("--current_utc_offset", type=int, default=-6, help="UTC zone for where script is being run (e.g. -6 is Chicago)")
-    args = parser.parse_args()
-
-    utczones = {'sf':-8, 'nyc':-5, 'lon':0, 'man':8, 'sin':8}
-
-    # Time in Chicago during winter - must adjust after Daylight Savings Time
-    current_time = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=args.current_utc_offset)))
-    try:
-        utc_zone = utczones.get(args.city)
-    except KeyError:
-        print("Invalid city. Must be one of {0}.".format(utczones.keys()))
-        return
-
-    start_time = datetime.datetime(year = current_time.year, month = current_time.month, day = current_time.day, hour=args.start_time, tzinfo = datetime.timezone(datetime.timedelta(hours=utc_zone)))
+#    parser = argparse.ArgumentParser()
+#    parser.add_argument("start_time", type=int, help="## between 00 and 24")
+#    args = parser.parse_args()
+#
+#    # Sleep if the start_time is in the future
+    current_time = datetime.datetime.now()
+    # start_time = datetime.datetime(year = current_time.year, month = current_time.month, day = current_time.day, hour = args.start_time)
+    start_time = current_time
     sleep_for = (start_time - current_time).seconds
     print("Will sleep for {0} seconds before starting.".format(sleep_for))
 
-    input_odpairs_fn = "data/intermediate/{0}_grid_od_pairs.csv".format(args.city)
-    output_routes_g_fn = "data/intermediate/{0}_grid_google_routes.csv".format(args.city)
-    output_routes_m_fn = "data/intermediate/{0}_grid_mapquest_routes.csv".format(args.city)
+    input_odpairs_fn = "data/chicago_od_pairs.csv"
+    output_routes_g_fn = "data/chicago_google_routes.csv"
+    output_routes_m_fn = "data/chicago_mapquest_routes.csv"
 
+    # Read all origin/destination pairs from CSV into list
     od_pairs = []
     with open(input_odpairs_fn, 'r') as fin:
         # open file with origin long, origin lat, dest long, dest lat
         csvreader = csv.reader(fin)
         input_header = ["ID", "origin_lon", "origin_lat", "destination_lon", "destination_lat", "straight_line_distance"]
         assert next(csvreader) == input_header
+
         id_idx = input_header.index("ID")
         oln_idx = input_header.index("origin_lon")
         olt_idx = input_header.index("origin_lat")
         dln_idx = input_header.index("destination_lon")
         dlt_idx = input_header.index("destination_lat")
         dist_idx = input_header.index("straight_line_distance")
+
         for row in csvreader:
+            if not row:  # every other row is empty, because Windows
+                continue
+
             origin = float(row[olt_idx]), float(row[oln_idx])
             destination = float(row[dlt_idx]), float(row[dln_idx])
             route_id = row[id_idx]
             od_pairs.append({'id':route_id, 'origin':origin, 'destination':destination})
-                            
+
+    # Do requests with Google and Mapquest together for each o/d pair
     with open(output_routes_g_fn, 'w') as foutg:
         with open(output_routes_m_fn, 'w') as foutm:
             fieldnames = ['ID', 'name', 'polyline_points', 'total_time_in_sec', 'total_distance_in_meters', 'number_of_steps', 'maneuvers']
@@ -342,8 +340,8 @@ def main():
             csvwriter_m = csv.DictWriter(foutm, fieldnames=fieldnames)
             csvwriter_g.writeheader()
             csvwriter_m.writeheader()
-            g = GoogleAPI(api_key_fn="api_keys/google.txt", api_limit=2500, stop_at_api_limit=True, city=args.city, route_type="grid", output_num=2)
-            m = MapquestAPI(api_key_fn="api_keys/mapquest.txt", api_limit=2500, stop_at_api_limit=True, city=args.city, route_type="grid", output_num=2)
+            g = GoogleAPI(api_key_fn="api_keys/google.txt", api_limit=2500, stop_at_api_limit=True, output_num=2)
+            m = MapquestAPI(api_key_fn="api_keys/mapquest.txt", api_limit=2500, stop_at_api_limit=True, output_num=2)
             
             time.sleep(sleep_for)
             g.write_to_log("LOG: At {0}: Starting script.\n".format(strftime("%Y-%m-%d %H:%M:%S")))
@@ -351,6 +349,7 @@ def main():
 
             for od_pair in od_pairs:
                 try:
+                    import pdb; pdb.set_trace()
                     routes_g = g.get_routes(od_pair['origin'], od_pair['destination'], od_pair['id'])
                     routes_m = m.get_routes(od_pair['origin'], od_pair['destination'], od_pair['id'])
                     for route in routes_g:

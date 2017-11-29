@@ -46,10 +46,9 @@ class API(object, metaclass = ABCMeta):
         self.queries_made += 1
         return [Route()]
 
-
     def write_to_log(self, mess_type="LOG", message=""):
         with open(self.logfile_fn, 'a') as fout:
-            fout.write("{0}: At {1}: {2}. {3} queries made.\n".format(mess_type, strftime("%Y-%m-%d %H:%M:%S"), message, self.queries_made))
+            fout.write("[{0}] At {1}: {2}. {3} queries made.\n".format(mess_type, strftime("%Y-%m-%d %H:%M:%S"), message, self.queries_made))
 
     def end(self):
         self.write_to_log("END", "Ending script")
@@ -340,16 +339,15 @@ def main():
             csvwriter_m = csv.DictWriter(foutm, fieldnames=fieldnames)
             csvwriter_g.writeheader()
             csvwriter_m.writeheader()
-            g = GoogleAPI(api_key_fn="api_keys/google.txt", api_limit=2500, stop_at_api_limit=True, output_num=2)
-            m = MapquestAPI(api_key_fn="api_keys/mapquest.txt", api_limit=2500, stop_at_api_limit=True, output_num=2)
+            g = GoogleAPI(api_key_fn="api_keys/google.txt", api_limit=2400, stop_at_api_limit=True, output_num=2)
+            m = MapquestAPI(api_key_fn="api_keys/mapquest.txt", api_limit=2400, stop_at_api_limit=True, output_num=2)
             
             time.sleep(sleep_for)
-            g.write_to_log("LOG: At {0}: Starting script.\n".format(strftime("%Y-%m-%d %H:%M:%S")))
-            m.write_to_log("LOG: At {0}: Starting script.\n".format(strftime("%Y-%m-%d %H:%M:%S")))
+            g.write_to_log("LOG", "Starting script.")
+            m.write_to_log("LOG", "Starting script.")
 
             for od_pair in od_pairs:
                 try:
-                    import pdb; pdb.set_trace()
                     routes_g = g.get_routes(od_pair['origin'], od_pair['destination'], od_pair['id'])
                     routes_m = m.get_routes(od_pair['origin'], od_pair['destination'], od_pair['id'])
                     for route in routes_g:
@@ -362,13 +360,13 @@ def main():
                         m.write_to_log("TOO MANY EXCEPTIONS", "{0} exceptions reached. Should be halting script".format((g.exceptions, m.exceptions)))
                         #break
                             
-                    if g.queries_made % 500 == 0:
-                        g.write_to_log("LOG", "Every 500 query check")
-                        m.write_to_log("LOG", "Every 500 query check")
+                    if g.queries_made % 100 == 0:
+                        g.write_to_log("LOG", "Every 100 query check")
+                        m.write_to_log("LOG", "Every 100 query check")
                         
                     # when almost hit API limit, shut-down
                     if g.stop_at_api_limit and g.queries_made == g.api_limit:
-                        current_time = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=-6)))
+                        current_time = datetime.datetime.now()
                         sleep_for = (start_time - current_time).seconds
                         g.write_to_log("API LIMIT", "Script sleeping for {0} seconds. Current route ID is {1}".format(sleep_for, od_pair['id']))
                         m.write_to_log("API LIMIT", "Script sleeping for {0} seconds. Current route ID is {1}".format(sleep_for, od_pair['id']))

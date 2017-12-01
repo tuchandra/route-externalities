@@ -85,7 +85,7 @@ class GoogleAPI(API):
 
         routes = []
         try:
-            route_jsons = self.client.directions(origin = origin, destination = destination, units = "metric", mode = "walking", departure_time = "now", alternatives = self.get_alternatives)
+            route_jsons = self.client.directions(origin = origin, destination = destination, units = "metric", mode = "driving", departure_time = "now", alternatives = self.get_alternatives)
 
         except Exception:
             traceback.print_exc()
@@ -213,84 +213,6 @@ class GoogleAPI(API):
         return points
 
 
-class MapquestAPI(API):
-
-    _turn_types = ['straight', 'slight right', 'right', 'sharp right', 'reverse', 'sharp left', 'left', 'slight left', 'right u-turn', 'left u-turn', 'right merge', 'left merge', 'right on ramp', 'left on ramp', 'right off ramp', 'left off ramp', 'right fork', 'left fork', 'straight fork', 'take transit', 'transfer transit', 'port transit', 'enter transit', 'exit transit']
-
-    def __init__(self, api_key_fn, api_limit=2500, stop_at_api_limit=True, output_num=1):
-        super().__init__(api_key_fn, api_limit, stop_at_api_limit, output_num)
-        self.logfile_fn = self.logfile_fn.replace("PLATFORM", "mapquest")
-        self.write_to_log("START", "Starting Mapquest API")
-        if self.get_alternatives:
-            self.base_url = "http://www.mapquestapi.com/directions/v2/alternateroutes?"
-        else:
-            self.base_url = "http://www.mapquestapi.com/directions/v2/route?"
-
-    def get_routes(self, origin, destination, route_id):
-        routes = []
-        start = "{0},{1}".format(origin[0], origin[1])
-        dest = "{0},{1}".format(destination[0], destination[1])
-        if self.get_alternatives:
-            url = self.base_url + urllib.parse.urlencode([('key', self.api_key), ("from", start), ("to", dest), ('narrativeType', 'text'), ('fullShape', 'true'), ('routeType', 'pedestrian'), ('unit', 'k'), ('doReverseGeocode','false'), ('maxRoutes', self.output_num)])
-        else:
-            url = self.base_url + urllib.parse.urlencode([('key', self.api_key), ("from", start), ("to", dest), ('narrativeType', 'text'), ('fullShape', 'true'), ('routeType', 'pedestrian'), ('unit', 'k'), ('doReverseGeocode','false')])
-
-        try:
-            response = urllib.request.urlopen(url)
-            response_str = response.read().decode('utf-8')
-            route_json = ast.literal_eval(response_str.replace('false','False').replace('true','True'))['route']
-        except Exception:
-            traceback.print_exc()
-            self.exceptions += 1
-            self.write_to_log("EXCEPTION", "Connection failed")
-            return [Route()]
-
-        try:
-            main_route = self.process_route(route_id, route_json, "main")
-            routes.append(main_route)
-            if self.get_alternatives:
-                if 'alternateRoutes' in route_json:
-                    for i in range(0, min(self.output_num - 1, len(route_json['alternateRoutes']))):
-                        alt_route = self.process_route(route_id, route_json['alternateRoutes'][i]['route'], "alternative {0}".format(i + 1))
-                        routes.append(alt_route)
-        except Exception:
-            traceback.print_exc()
-            self.exceptions += 1
-            try:
-                self.write_to_log("EXCEPTION", str(route_json))
-            except Exception:
-                traceback.print_exc()
-                self.write_to_log("EXCEPTION", "Processing routes failed. JSON not valid")
-            return [Route()]
-
-        self.queries_made += 1
-        return routes
-
-    def process_route(self, route_id, route_json, name):
-        route_steps = route_json.get('legs')[0].get('maneuvers')
-        route_points_raw = route_json.get('shape')['shapePoints']
-        route_points = []
-        for i in range(0, len(route_points_raw), 2):
-            route_points.append((route_points_raw[i], route_points_raw[i+1]))
-
-        total_time_sec = route_json.get('realTime')
-        if total_time_sec > 10000000:  # used by mapquest to signify closed road
-            total_time_sec = route_json.get('time')
-        total_distance_meters = route_json.get('distance')*1000
-
-        maneuvers = []
-        for i in range(0, len(route_steps)):
-            try:
-                maneuvers.append(self._turn_types[route_steps[i].get('turnType')])
-            except IndexError:
-                self.write_to_log("EXCEPTION", "{0}: illegal maneuver {1}".format(row[id_idx], route_steps[i]))
-                maneuvers.append(None)
-        num_steps = len(maneuvers) - 1  # don't count first step
-        return Route(route_id=route_id, name=name, route_points=route_points, time_sec=total_time_sec, distance_meters=total_distance_meters, maneuvers=maneuvers)
-        
-
-
-
 def main():
 #    parser = argparse.ArgumentParser()
 #    parser.add_argument("start_time", type=int, help="## between 00 and 24")
@@ -305,7 +227,6 @@ def main():
 
     input_odpairs_fn = "data/chicago_od_pairs.csv"
     output_routes_g_fn = "data/chicago_google_routes.csv"
-    output_routes_m_fn = "data/chicago_mapquest_routes.csv"
 
     # Read all origin/destination pairs from CSV into list
     od_pairs = []
@@ -333,58 +254,45 @@ def main():
 
     # Do requests with Google and Mapquest together for each o/d pair
     with open(output_routes_g_fn, 'w') as foutg:
-        with open(output_routes_m_fn, 'w') as foutm:
-            fieldnames = ['ID', 'name', 'polyline_points', 'total_time_in_sec', 'total_distance_in_meters', 'number_of_steps', 'maneuvers']
-            csvwriter_g = csv.DictWriter(foutg, fieldnames=fieldnames)
-            csvwriter_m = csv.DictWriter(foutm, fieldnames=fieldnames)
-            csvwriter_g.writeheader()
-            csvwriter_m.writeheader()
-            g = GoogleAPI(api_key_fn="api_keys/google.txt", api_limit=2400, stop_at_api_limit=True, output_num=2)
-            m = MapquestAPI(api_key_fn="api_keys/mapquest.txt", api_limit=2400, stop_at_api_limit=True, output_num=2)
-            
-            time.sleep(sleep_for)
-            g.write_to_log("LOG", "Starting script.")
-            m.write_to_log("LOG", "Starting script.")
+        fieldnames = ['ID', 'name', 'polyline_points', 'total_time_in_sec', 'total_distance_in_meters', 'number_of_steps', 'maneuvers']
+        csvwriter_g = csv.DictWriter(foutg, fieldnames=fieldnames)
+        csvwriter_g.writeheader()
+        g = GoogleAPI(api_key_fn = "api_keys/google.txt", api_limit = 2400, 
+                      stop_at_api_limit = True, output_num = 2)
+        
+        time.sleep(sleep_for)
+        g.write_to_log("LOG", "Starting script.")
 
-            for od_pair in od_pairs:
-                try:
-                    routes_g = g.get_routes(od_pair['origin'], od_pair['destination'], od_pair['id'])
-                    routes_m = m.get_routes(od_pair['origin'], od_pair['destination'], od_pair['id'])
-                    for route in routes_g:
-                        csvwriter_g.writerow(route)
-                    for route in routes_m:
-                        csvwriter_m.writerow(route)
+        for od_pair in od_pairs:
+            try:
+                routes_g = g.get_routes(od_pair['origin'], od_pair['destination'], od_pair['id'])
+                for route in routes_g:
+                    csvwriter_g.writerow(route)
 
-                    if (g.exceptions + 1) % 40 == 0 or (m.exceptions + 1) % 40 == 0:
-                        g.write_to_log("TOO MANY EXCEPTIONS", "{0} exceptions reached. Should be halting script".format((g.exceptions, m.exceptions)))
-                        m.write_to_log("TOO MANY EXCEPTIONS", "{0} exceptions reached. Should be halting script".format((g.exceptions, m.exceptions)))
-                        #break
-                            
-                    if g.queries_made % 100 == 0:
-                        g.write_to_log("LOG", "Every 100 query check")
-                        m.write_to_log("LOG", "Every 100 query check")
+                if (g.exceptions + 1) % 40 == 0 or (m.exceptions + 1) % 40 == 0:
+                    g.write_to_log("TOO MANY EXCEPTIONS", "{0} exceptions reached. Should be halting script".format((g.exceptions, m.exceptions)))
+                    #break
+
+                if g.queries_made % 100 == 0:
+                    g.write_to_log("LOG", "Every 100 query check")
+
+                # when almost hit API limit, shut-down
+                if g.stop_at_api_limit and g.queries_made == g.api_limit:
+                    current_time = datetime.datetime.now()
+                    sleep_for = (start_time - current_time).seconds
+                    g.write_to_log("API LIMIT", "Script sleeping for {0} seconds. Current route ID is {1}".format(sleep_for, od_pair['id']))
                         
-                    # when almost hit API limit, shut-down
-                    if g.stop_at_api_limit and g.queries_made == g.api_limit:
-                        current_time = datetime.datetime.now()
-                        sleep_for = (start_time - current_time).seconds
-                        g.write_to_log("API LIMIT", "Script sleeping for {0} seconds. Current route ID is {1}".format(sleep_for, od_pair['id']))
-                        m.write_to_log("API LIMIT", "Script sleeping for {0} seconds. Current route ID is {1}".format(sleep_for, od_pair['id']))
-                            
-                        time.sleep(sleep_for)
-                        g.reset()
-                        m.reset()
-                    else:
-                        # be nice to API
-                        time.sleep(1 + (0.5 - random()))
-                    
+                    time.sleep(sleep_for)
+                    g.reset()
+                else:
+                    # be nice to API
+                    time.sleep(1 + (0.5 - random()))
 
-                except KeyboardInterrupt:
-                    traceback.print_exc()
-                    break
+            except KeyboardInterrupt:
+                traceback.print_exc()
+                break
 
-            g.end()
-            m.end()
+        g.end()
 
 if __name__ == "__main__":
     main()

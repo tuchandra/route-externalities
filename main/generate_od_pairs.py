@@ -8,7 +8,7 @@ from geopy.distance import vincenty
 from geopy.distance import great_circle
 from shapely.geometry import shape, Point
 
-ODPAIRS_PER_CITY = 5000
+ODPAIRS_PER_CITY = 4000
 OUTPUT_HEADER = ["ID", "origin_lon", "origin_lat", "destination_lon", "destination_lat", "straight_line_distance"]
 
 def odpairs_from_grid_centroids(input_geojson_fn, output_csv_fn, min_dist, max_dist):
@@ -79,7 +79,7 @@ def get_distance(orig_pt, dest_pt):
 
 def main():
     min_dist = 0
-    max_dist = 10
+    max_dist = 20  # distance in KM
     data_folder = "data"
     city = "chicago"
 

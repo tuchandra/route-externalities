@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-"""Get routes from external APIs.
 
-Currently implemented for Google and Mapquest APIs.
-Requires API keys for either API as well as input origin-destination pairs.
-Timezone where script is being run and where routes are being collected can be
-set so that gathering time of routes is carefully controlled.
+"""Get routes from Google Maps APIs.
+
+Requires API keys as well as input origin-destination pairs.
 """
+
 from abc import ABCMeta, abstractmethod
 
 import csv
@@ -61,7 +60,8 @@ class API(object, metaclass = ABCMeta):
 
 class Route(dict):
 
-    def __init__(self, route_id="", name="", route_points=[], time_sec=None, distance_meters=None, maneuvers=[]):
+    def __init__(self, route_id="", name="", route_points=[], time_sec=None,
+                 distance_meters=None, maneuvers=[]):
         self['ID'] = route_id
         self['name'] = name
         self['polyline_points'] = route_points
@@ -85,7 +85,10 @@ class GoogleAPI(API):
 
         routes = []
         try:
-            route_jsons = self.client.directions(origin = origin, destination = destination, units = "metric", mode = "driving", departure_time = "now", alternatives = self.get_alternatives)
+            route_jsons = self.client.directions(origin = origin,
+                destination = destination, units = "metric",
+                mode = "driving", departure_time = "now",
+                alternatives = self.get_alternatives)
 
         except Exception:
             traceback.print_exc()
@@ -123,7 +126,11 @@ class GoogleAPI(API):
                 name = "main"
                 if idx > 0:
                     name = "alternative {0}".format(idx)
-                routes.append(Route(route_id=route_id, name=name, route_points=route_points, time_sec=total_time_sec, distance_meters=total_distance_meters, maneuvers=maneuvers))
+
+                routes.append(Route(route_id=route_id, name=name,
+                    route_points=route_points, time_sec=total_time_sec,
+                    distance_meters=total_distance_meters, maneuvers=maneuvers))
+
                 idx += 1
 
         except Exception:
@@ -233,7 +240,8 @@ def main():
     with open(input_odpairs_fn, 'r') as fin:
         # open file with origin long, origin lat, dest long, dest lat
         csvreader = csv.reader(fin)
-        input_header = ["ID", "origin_lon", "origin_lat", "destination_lon", "destination_lat", "straight_line_distance"]
+        input_header = ["ID", "origin_lon", "origin_lat", "destination_lon",
+                        "destination_lat", "straight_line_distance"]
         assert next(csvreader) == input_header
 
         id_idx = input_header.index("ID")
@@ -250,11 +258,16 @@ def main():
             origin = float(row[olt_idx]), float(row[oln_idx])
             destination = float(row[dlt_idx]), float(row[dln_idx])
             route_id = row[id_idx]
-            od_pairs.append({'id':route_id, 'origin':origin, 'destination':destination})
+            od_pairs.append({
+                'id' : route_id,
+                'origin' : origin,
+                'destination' : destination
+            })  # this style is very javascript
 
-    # Do requests with Google and Mapquest together for each o/d pair
+    # Do routing requests for each o/d pair
     with open(output_routes_g_fn, 'w') as foutg:
-        fieldnames = ['ID', 'name', 'polyline_points', 'total_time_in_sec', 'total_distance_in_meters', 'number_of_steps', 'maneuvers']
+        fieldnames = ['ID', 'name', 'polyline_points', 'total_time_in_sec',
+                      'total_distance_in_meters', 'number_of_steps', 'maneuvers']
         csvwriter_g = csv.DictWriter(foutg, fieldnames=fieldnames)
         csvwriter_g.writeheader()
         g = GoogleAPI(api_key_fn = "api_keys/google.txt", api_limit = 2400, 
@@ -269,7 +282,7 @@ def main():
                 for route in routes_g:
                     csvwriter_g.writerow(route)
 
-                if (g.exceptions + 1) % 40 == 0 or (m.exceptions + 1) % 40 == 0:
+                if (g.exceptions + 1) % 40 == 0:
                     g.write_to_log("TOO MANY EXCEPTIONS", "{0} exceptions reached. Should be halting script".format((g.exceptions, m.exceptions)))
                     #break
 

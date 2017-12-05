@@ -85,10 +85,14 @@ class GoogleAPI(API):
 
         routes = []
         try:
-            route_jsons = self.client.directions(origin = origin,
-                destination = destination, units = "metric",
-                mode = "driving", departure_time = "now",
-                alternatives = self.get_alternatives)
+            route_jsons = self.client.directions(
+                origin = origin,
+                destination = destination,
+                units = "metric",
+                mode = "driving",
+                departure_time = "now",
+                alternatives = self.get_alternatives
+            )
 
         except Exception:
             traceback.print_exc()
